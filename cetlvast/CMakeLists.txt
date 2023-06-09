@@ -17,9 +17,23 @@ cmake_minimum_required(VERSION 3.22.0)
 ###############################################################################
 
 # +---------------------------------------------------------------------------+
+# | FLAG SETS
+# +---------------------------------------------------------------------------+
+cmake_path(APPEND CMAKE_SOURCE_DIR "cmake" "compiler_flag_sets" OUTPUT_VARIABLE CETLVAST_FLAG_SETS_PATH)
+if(NOT DEFINED CETLVAST_FLAG_SET)
+    message(VERBOSE "CETLVAST_FLAG_SET was not defined. Setting to \"default\" as a default")
+    cmake_path(APPEND CETLVAST_FLAG_SETS_PATH "default.cmake" OUTPUT_VARIABLE CETLVAST_FLAG_SET)
+else()
+    cmake_path(APPEND CETLVAST_FLAG_SETS_PATH ${CETLVAST_FLAG_SET} OUTPUT_VARIABLE CETLVAST_FLAG_SET)
+endif()
+#
+# Load all our compile flag sets into the appropriate places.
+#
+include(${CETLVAST_FLAG_SET})
+
+# +---------------------------------------------------------------------------+
 # | PROJECT
 # +---------------------------------------------------------------------------+
-
 project(cetlvast C CXX)
 
 if(NOT DEFINED CMAKE_MESSAGE_LOG_LEVEL)
@@ -78,6 +92,15 @@ message(STATUS
 -----------------------------------------------------------\n\
 ")
 
+message(STATUS
+"[ target  ]-----------------------------------------------\n\
+    CMAKE_SYSTEM_NAME:               ${CMAKE_SYSTEM_NAME}\n\
+    CMAKE_SYSTEM_VERSION:            ${CMAKE_SYSTEM_VERSION}\n\
+    CMAKE_SYSTEM_PROCESSOR:          ${CMAKE_SYSTEM_PROCESSOR}\n\
+-----------------------------------------------------------\n\
+")
+
+
 # +---------------------------------------------------------------------------+
 # | OPTIONS/VARIANTS
 # +---------------------------------------------------------------------------+
@@ -126,13 +149,6 @@ set(CXX_EXTENSIONS OFF)
 # | KITS
 # +---------------------------------------------------------------------------+
 
-if(NOT DEFINED CETLVAST_FLAG_SET)
-    message(VERBOSE "CETLVAST_FLAG_SET was not defined. Setting to \"default\" as a default")
-    set(CETLVAST_FLAG_SET ${CMAKE_SOURCE_DIR}/cmake/compiler_flag_sets/default.cmake)
-else()
-    set(CETLVAST_FLAG_SET ${CETLVAST_FLAG_SET})
-endif()
-
 message(STATUS "[ Build Kit ]-------------------------------------------\n\
     CMAKE_TOOLCHAIN_FILE:           ${CMAKE_TOOLCHAIN_FILE}\n\
     CETLVAST_FLAG_SET:              ${CETLVAST_FLAG_SET}\n\
@@ -144,14 +160,6 @@ message(STATUS "[ Build Kit ]-------------------------------------------\n\
     CMAKE_[lang]_PLATFORM_ID:       ${CMAKE_CXX_PLATFORM_ID}\n\
 -----------------------------------------------------------\n\
 ")
-
-# +---------------------------------------------------------------------------+
-# | FLAG SETS
-# +---------------------------------------------------------------------------+
-#
-# Load all our compile flag sets into the appropriate places.
-#
-include(${CETLVAST_FLAG_SET})
 
 # +---------------------------------------------------------------------------+
 # | CETL
