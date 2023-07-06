@@ -139,7 +139,7 @@ public:
 
     /// While this object is simply a functor and could be used with other smart pointers the
     /// design is optimized for and tested with this std::unique_ptr type.
-    using unique_ptr = std::unique_ptr<value_type, cetl::pmr::PolymorphicDeleter<PolymorphicDeallocator>>;
+    using unique_ptr_type = std::unique_ptr<value_type, cetl::pmr::PolymorphicDeleter<PolymorphicDeallocator>>;
 
     PolymorphicDeleter() noexcept = delete;
 
@@ -201,6 +201,207 @@ public:
 private:
     PolymorphicDeallocator alloc_;
     std::size_t            obj_count_;
+};
+
+/// Deleter for use with weak_unique_ptr enabled unique_ptr instances.
+/// @note
+/// See cetl::pmr::Factory for an example of how to use this type.
+///
+/// @tparam PolymorphicDeallocator    The type of the polymorphic allocator to use for deallocation.
+///
+template <typename PolymorphicDeallocator>
+class UnsynchronizedWeakReferablePolymorphicDeleter final
+{
+public:
+    /// The allocator type for this deleter.
+    using allocator = typename PolymorphicDeleter<PolymorphicDeallocator>::allocator;
+
+    /// The type this deleter deleter.
+    using value_type = typename PolymorphicDeleter<PolymorphicDeallocator>::value_type;
+
+    /// While this object is simply a functor and could be used with other smart
+    /// pointers the design is optimized for and tested with this
+    /// std::unique_ptr type.
+    using unique_ptr_type = std::unique_ptr<value_type, cetl::pmr::UnsynchronizedWeakReferablePolymorphicDeleter<PolymorphicDeallocator>>;
+
+    class WeakReferenceDeleter final
+    {
+    public:
+        WeakReferenceDeleter(unique_ptr_type& weak_ptr_to)
+            : ref_{&weak_ptr_to}
+            , next_{nullptr}
+        {
+            next_ = ref_->get_deleter().push_front(this);
+        }
+        WeakReferenceDeleter(const WeakReferenceDeleter&) = delete;
+        WeakReferenceDeleter(WeakReferenceDeleter&& rhs)
+            : ref_{rhs.ref_}
+            , next_{rhs.next_}
+        {
+            if (ref_)
+            {
+                // inform the strong reference that the weak reference is moving.
+                ref_->get_deleter().replace(&rhs, this);
+            }
+            rhs.ref_  = nullptr;
+            rhs.next_ = nullptr;
+        }
+
+        ~WeakReferenceDeleter()
+        {
+            if (ref_)
+            {
+                ref_->get_deleter().remove(this);
+            }
+        }
+
+        /// Functor called by smart-pointer to deallocate and deconstruct
+        /// objects.
+        /// @param p    The object to deconstruct and deallocate.
+        void operator()(value_type* p) noexcept
+        {
+            if (nullptr != ref_)
+            {
+                // this is a weak reference so we don't actually delete the
+                // value but we notify the strong-reference deleter that
+                // it no longer needs to track us.
+                if (ref_)
+                {
+                    ref_->get_deleter().remove(this);
+                    ref_ = nullptr;
+                    next_ = nullptr;
+                }
+            }
+        }
+
+        void onStrongPointerDelete() noexcept
+        {
+            // null the reference so we don't try to call back into the strong pointer when this deleter is invoked by
+            // the reset.
+            auto ref = ref_;
+            ref_ = nullptr;
+            if (nullptr != ref_)
+            {
+                ref_->reset();
+            }
+        }
+
+        WeakReferenceDeleter* next() const noexcept
+        {
+            return next_;
+        }
+
+        WeakReferenceDeleter* setNext(WeakReferenceDeleter* new_next) noexcept
+        {
+            WeakReferenceDeleter* prev_next = next_;
+            next_                           = new_next;
+            return prev_next;
+        }
+
+    private:
+        unique_ptr_type*                               ref_;
+        WeakReferenceDeleter*                          next_;
+    };
+
+    using weak_unique_pointer_type = std::unique_ptr<value_type, WeakReferenceDeleter>;
+    static weak_unique_pointer_type make_weak_ref(unique_ptr_type& ptr_to)
+    {
+        return weak_unique_pointer_type{ptr_to.get(), WeakReferenceDeleter{ptr_to}};
+    }
+
+    UnsynchronizedWeakReferablePolymorphicDeleter() noexcept = delete;
+
+    /// Designated constructor that copies a given allocator and records the
+    /// object count to use when deleting the smart pointer resources.
+    /// @param alloc        The allocator to use when deleting the objects in
+    /// the smart pointer.
+    /// @param object_count The number of objects in the smart pointer that will
+    /// be deleted.
+    UnsynchronizedWeakReferablePolymorphicDeleter(
+        const PolymorphicDeallocator& alloc,
+        std::size_t object_count) noexcept(std::is_nothrow_copy_constructible<PolymorphicDeallocator>::value)
+        : alloc_{alloc}
+        , obj_count_{object_count}
+        , head_{nullptr}
+    {
+    }
+
+    ~UnsynchronizedWeakReferablePolymorphicDeleter() = default;
+
+    UnsynchronizedWeakReferablePolymorphicDeleter(UnsynchronizedWeakReferablePolymorphicDeleter&& rhs) noexcept(
+        std::is_nothrow_move_constructible<PolymorphicDeallocator>::value)
+        : alloc_{rhs.alloc_}
+        , obj_count_{rhs.obj_count_}
+        , head_{rhs.head_}
+    {
+    }
+
+    UnsynchronizedWeakReferablePolymorphicDeleter& operator=(UnsynchronizedWeakReferablePolymorphicDeleter&&) = delete;
+
+    UnsynchronizedWeakReferablePolymorphicDeleter(const UnsynchronizedWeakReferablePolymorphicDeleter& rhs) = delete;
+    UnsynchronizedWeakReferablePolymorphicDeleter& operator=(const UnsynchronizedWeakReferablePolymorphicDeleter& rhs) =
+        delete;
+
+    /// Functor called by smart-pointer to deallocate and deconstruct objects.
+    /// @param p    The object to deconstruct and deallocate.
+    void operator()(value_type* p) noexcept
+    {
+        WeakReferenceDeleter* next = head_;
+        head_                      = nullptr;
+        while (next != nullptr)
+        {
+            WeakReferenceDeleter& prev = *next;
+            next                       = next->next();
+            prev.onStrongPointerDelete(p);
+        }
+        if (nullptr != p)
+        {
+            // while pmr allocators define a destroy method, it is deprecated in
+            // C++20 since it adds little value over simply calling the
+            // destructor directly.
+            p->~value_type();
+        }
+        alloc_.deallocate(p, obj_count_);
+    }
+
+    WeakReferenceDeleter* push_front(WeakReferenceDeleter* next)
+    {
+        WeakReferenceDeleter* prev_head = head_;
+        head_                           = next;
+        return prev_head;
+    }
+
+    void replace(WeakReferenceDeleter* const old_ref, WeakReferenceDeleter* const new_ref)
+    {
+        if (old_ref == head_)
+        {
+            // special case where we're replacing the head.
+            head_ = new_ref;
+            return;
+        }
+        // debug assert head_ != null
+        WeakReferenceDeleter* prev = head_;
+        WeakReferenceDeleter* next = prev->next();
+        while (next != nullptr)
+        {
+            if (next == old_ref)
+            {
+                prev->setNext(new_ref);
+                break;
+            }
+            next = next->next();
+        }
+    }
+
+    void remove(WeakReferenceDeleter* const ref)
+    {
+        replace(ref, ref->next());
+    }
+
+private:
+    PolymorphicDeallocator alloc_;
+    std::size_t            obj_count_;
+    WeakReferenceDeleter*  head_;
 };
 
 /// Factory helper for creating objects with polymorphic allocators using proper RAII semantics.

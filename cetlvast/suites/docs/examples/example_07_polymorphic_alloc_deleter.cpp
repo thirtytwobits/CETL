@@ -150,3 +150,24 @@ TEST(example_07_polymorphic_alloc_deleter, example_usage_1)
 
     //![example_usage_1]
 }
+
+class Registrar
+{
+public:
+};
+
+TEST(example_07_polymorphic_alloc_deleter, example_usage_weak_ref)
+{
+    //![example_usage_weak_ref]
+    // First a WARNING! This is not thread-safe. It is undefined behaviour to use a weak reference from a thread that
+    // does not own the strong reference. Furthermore, a synchronized version of this would require reference counting
+    // which would mean you should just use std::shared_ptr and std::weak_ptr.
+    //
+    // Okay, that warning aside, the CETL weak_ptr_to_unique is a lighter-weight solution than the STL shared_ptr
+    // based solution and it encourages strong memory ownership by enabling unique_ptr in more use cases. That said,
+    // given the single-threaded limitation weak_ptr_to_unique's utility is limited when compared to raw pointers.
+
+    
+
+    //![example_usage_weak_ref]
+}
