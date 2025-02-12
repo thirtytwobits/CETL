@@ -6,6 +6,18 @@
 /// Copyright Amazon.com Inc. or its affiliates.
 /// SPDX-License-Identifier: MIT
 
+// +******************************************************************************************************************+
+// * WARNING:
+// *    This test can take a _very_ long time to compile. No, the build isn't stuck. Ninja is purposefully very
+// * quiet and the time is all spent doing some really-big-O operations when processing all the template code.
+// * This is a complex set of test templates used to test a complex set of templates (optional).
+// *
+// * For example: on a virt one user saw a 4 minute compilation time for this one file:
+// *    [driver] Build completed: 00:04:14.217
+// *
+// * Be patient. Sorry.
+// +******************************************************************************************************************+
+
 #include <cetl/pf17/optional.hpp>
 #include <cetlvast/typelist.hpp>
 #include <cetlvast/smf_policies.hpp>
