@@ -11,33 +11,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  verification:
+  verification-amd64:
     if: >
       contains(github.event.head_commit.message, '#verification') ||
       contains(github.ref, '/main') ||
       contains(github.ref, '/issue/') ||
       (github.event_name == 'pull_request')
     runs-on: ubuntu-latest
-    container: ghcr.io/opencyphal/toolshed:ts22.4.10
+    container: ghcr.io/opencyphal/toolshed:ts24.4.3
     strategy:
       matrix:
-        build_flavor: [Debug, Release]
-        exceptions: [exceptions, no-exceptions]
-        std: [14, 17, 20]
-        toolchain: [gcc, clang]
-        include:
-          - build_flavor: Coverage
-            exceptions: exceptions
-            std: 14
-            toolchain: gcc
-        exclude:
-          - build_flavor: Debug
-            exceptions: no-exceptions
-            std: 14
-            toolchain: gcc
+        toolchain: [
+          "gcc-native-32",
+          "clang-native"
+        ]
+        standard: [
+          "cpp-14",
+          "cpp-17",
+          "cpp-20"
+        ]
     steps:
     - uses: actions/checkout@v4
-
     - name: Cache ext modules
       id: cetlvast-ext
       uses: actions/cache@v4
@@ -45,32 +39,68 @@ jobs:
         cache-name: cetlvast-ext-cache
       with:
         path: cetlvast/build_external
-        key: gtest_b796f7d44681514f58a683a3a71ff17c94edb0c1
+        key: gtest_v1.16.0_benchmark_v1.9.1_o1heap_aa3c253923db36eee7d73a4a5e30884a5fe7a6eb
     - name: run tests
+      working-directory: cetlvast
       env:
         GTEST_COLOR: yes
       run: >
-        ./build-tools/bin/verify.py
-        -v
-        --online
-        --asserts
-        --${{ matrix.exceptions }}
-        --build-flavor ${{ matrix.build_flavor }}
-        --cpp-standard ${{ matrix.std }}
-        --toolchain ${{ matrix.toolchain }}
-        test
-    - name: debug output
-      if: ${{ runner.debug == '1' }}
-      run: ls -lAhR build/
+        cmake --workflow --preset workflow-${{ matrix.toolchain }}-${{ matrix.standard }}-online
     - name: upload-artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.build_flavor }}-${{ matrix.exceptions }}-${{ matrix.std }}-${{ matrix.toolchain }}
+        name: ${{ matrix.toolchain }}-${{ matrix.standard }}-amd64
         path: |
-          build/compile_commands.json
-          build/*/**/coverage.xml
-          build/*/**/*-sonarqube.xml
-          build/*/**/gcovr_html/*.*
+          cetlvast/build/compile_commands.json
+          cetlvast/build/*/**/coverage.xml
+          cetlvast/build/*/**/*-sonarqube.xml
+          cetlvast/build/*/**/gcovr_html/*.*
+        if-no-files-found: error
+
+  verification-arm64:
+    if: >
+      contains(github.event.head_commit.message, '#verification') ||
+      contains(github.ref, '/main') ||
+      contains(github.ref, '/issue/') ||
+      (github.event_name == 'pull_request')
+    runs-on: ubuntu-24.04-arm
+    container: ghcr.io/opencyphal/toolshed:ts24.4.3
+    strategy:
+      matrix:
+        toolchain: [
+          "gcc-native",
+          "clang-native"
+        ]
+        standard: [
+          "cpp-14",
+          "cpp-17",
+          "cpp-20"
+        ]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Cache ext modules
+      id: cetlvast-ext
+      uses: actions/cache@v4
+      env:
+        cache-name: cetlvast-ext-cache
+      with:
+        path: cetlvast/build_external
+        key: gtest_v1.16.0_benchmark_v1.9.1_o1heap_aa3c253923db36eee7d73a4a5e30884a5fe7a6eb
+    - name: run tests
+      working-directory: cetlvast
+      env:
+        GTEST_COLOR: yes
+      run: >
+        cmake --workflow --preset workflow-${{ matrix.toolchain }}-${{ matrix.standard }}-online
+    - name: upload-artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.toolchain }}-${{ matrix.standard }}-arm64
+        path: |
+          cetlvast/build/compile_commands.json
+          cetlvast/build/*/**/coverage.xml
+          cetlvast/build/*/**/*-sonarqube.xml
+          cetlvast/build/*/**/gcovr_html/*.*
         if-no-files-found: error
 
   docs:
@@ -80,7 +110,7 @@ jobs:
       contains(github.ref, '/issue/') ||
       (github.event_name == 'pull_request')
     runs-on: ubuntu-latest
-    container: ghcr.io/opencyphal/toolshed:ts22.4.10
+    container: ghcr.io/opencyphal/toolshed:ts24.4.3
     steps:
     - uses: actions/checkout@v4
     - name: Cache ext modules
@@ -90,31 +120,31 @@ jobs:
         cache-name: cetlvast-ext-cache
       with:
         path: cetlvast/build_external
-        key: gtest_b796f7d44681514f58a683a3a71ff17c94edb0c1
-    - name: doc-gen
-      run: >
-        ./build-tools/bin/verify.py
-        -v
-        --online
-        --asserts
-        --build-flavor Debug
-        --cpp-standard 14
-        build-docs
+        key: gtest_v1.16.0_benchmark_v1.9.1_o1heap_aa3c253923db36eee7d73a4a5e30884a5fe7a6eb
+    - name: doc-gen-configure
+      working-directory: cetlvast
+      run: cmake --preset configure-gcc-native-cpp-14-online
+    - name: doc-gen-build
+      working-directory: cetlvast/build
+      run: ninja docs
     - name: Setup Pages
       if: ${{ github.event_name != 'pull_request' }}
-      uses: actions/configure-pages@v3
+      uses: actions/configure-pages@v5
     - name: Upload docs
       if: ${{ github.event_name != 'pull_request' }}
-      uses: actions/upload-pages-artifact@v1
+      uses: actions/upload-pages-artifact@v3
       with:
-        path: "build/suites/docs/html/"
+        path: "cetlvast/build/suites/docs/html/"
+    - name: Deploy to GitHub Pages
+      if: ${{ github.event_name != 'pull_request' }}
+      id: deployment
+      uses: actions/deploy-pages@v4.0.5
     - name: upload-pr-docs
       if: ${{ github.event_name == 'pull_request' }}
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-pages-artifact@v3
       with:
         name: pr-docs
-        path: "build/suites/docs/html/"
-        if-no-files-found: error
+        path: "cetlvast/build/suites/docs/html/"
 
   sonarqube:
     if: >
@@ -123,10 +153,11 @@ jobs:
       contains(github.ref, '/issue/') ||
       (github.event_name == 'pull_request')
     needs:
-    - verification
+    - verification-amd64
+    - verification-arm64
     - docs
     runs-on: ubuntu-latest
-    container: ghcr.io/opencyphal/toolshed:ts22.4.10
+    container: ghcr.io/opencyphal/toolshed:ts24.4.3
     steps:
     - uses: actions/checkout@v4
       with:
@@ -141,11 +172,11 @@ jobs:
         cache-name: cetlvast-ext-cache
       with:
         path: cetlvast/build_external
-        key: gtest_b796f7d44681514f58a683a3a71ff17c94edb0c1
-    - uses: actions/download-artifact@v3
+        key: gtest_v1.16.0_benchmark_v1.9.1_o1heap_aa3c253923db36eee7d73a4a5e30884a5fe7a6eb
+    - uses: actions/download-artifact@v4
       with:
-        name: Coverage-exceptions-14-gcc
-        path: build
+        name: gcc-native-cpp-14-arm64
+        path: cetlvast/build
     - name: Run sonar-scanner
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -164,13 +195,15 @@ jobs:
           --define sonar.cfamily.ignoreHeaderComments=false
           --define sonar.coverage.exclusions="cetlvast/suites/unittest/**/*,cetlvast/suites/docs/examples/**/*,**/sonar.cpp"
           --define sonar.cpd.exclusions="cetlvast/suites/unittest/**/*,cetlvast/suites/docs/examples/**/*,**/sonar.cpp"
-          --define sonar.cfamily.compile-commands="build/compile_commands.json"
+          --define sonar.cfamily.compile-commands="cetlvast/build/compile_commands.json"
           --define sonar.cfamily.reportingCppStandardOverride=c++14
-          --define sonar.coverageReportPaths="build/suites/unittest/coverage.xml,build/suites/docs/examples/coverage.xml"
-          --define sonar.testExecutionReportPaths="build/suites/unittest/unittest-sonarqube.xml,build/suites/docs/examples/examples-sonarqube.xml"
+          --define sonar.coverageReportPaths="cetlvast/build/suites/unittest/coverage.xml,cetlvast/build/suites/docs/examples/coverage.xml"
+          --define sonar.testExecutionReportPaths="cetlvast/build/suites/unittest/unittest-sonarqube.xml,cetlvast/build/suites/docs/examples/examples-sonarqube.xml"
 
   deploy-docs:
-    if: ${{ (github.event_name == 'release' && !github.event.release.prerelease) || github.event_name == 'workflow_dispatch' }}
+    if: >
+      (github.event_name == 'release' && !github.event.release.prerelease) ||
+      github.event_name == 'workflow_dispatch'
     needs:
       - sonarqube
     # Grant GITHUB_TOKEN the permissions required to make a Pages deployment

@@ -27,6 +27,7 @@
 
 using testing::Gt;
 using testing::Lt;
+using testing::Le;
 using testing::IsNull;
 
 template <typename StringViewT, typename CharT>
@@ -139,17 +140,17 @@ TYPED_TEST(TestStringView, ConstructFromStdString)
 
 TYPED_TEST(TestStringView, SizeAndLength)
 {
-    using char_type         = typename TypeParam::char_type;
     using basic_string_view = typename TypeParam::sv_type;
+    using size_type = typename basic_string_view::size_type;
 
     const auto test_str = TestFixture::toStr("Test string");
 
     const basic_string_view sv{test_str};
     EXPECT_THAT(sv.size(), 11u);
     EXPECT_THAT(sv.length(), 11u);
-    EXPECT_THAT(sv.max_size(),
-                (basic_string_view::npos - sizeof(typename basic_string_view::size_type) - sizeof(void*)) /
-                    sizeof(char_type) / 4);
+    // npos value is per C++17 specification.
+    EXPECT_THAT(basic_string_view::npos, static_cast<size_type>(-1));
+    EXPECT_THAT(sv.max_size(), Le(basic_string_view::npos));
 }
 
 TYPED_TEST(TestStringView, Empty)

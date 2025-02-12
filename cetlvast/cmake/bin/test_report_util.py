@@ -54,7 +54,7 @@ def _junit_to_sonarqube_generic_execution_format(junit_report: pathlib.Path, tes
                 quirksmode = "ctest"
                 testcase_file = testcase.get("classname")
                 if testcase_file is None:
-                    logging.warn("junit2sonarqube: Unknown tag {} (skipping)".format(testcase.tag))
+                    logging.warning("junit2sonarqube: Unknown tag {} (skipping)".format(testcase.tag))
                     continue
 
             testcase_name: str = testcase.get("name", "")

@@ -10,20 +10,51 @@ project(cetlvast_unittest CXX)
 find_package(googletest REQUIRED)
 find_package(TestReport REQUIRED)
 find_package(o1heap REQUIRED)
-if (CMAKE_BUILD_TYPE STREQUAL "Coverage")
-find_package(gcovr REQUIRED)
-endif()
+find_package(gcovr)
 
 
 # +---------------------------------------------------------------------------+
 #   We generate individual test binaires so we can record which test generated
 #   what coverage. We also allow test authors to generate coverage reports for
 #   just one test allowing for faster iteration.
-file(GLOB_RECURSE NATIVE_TESTS
-    LIST_DIRECTORIES false
-    CONFIGURE_DEPENDS
-    RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-    test_*.cpp **/test_*.cpp
+set(NATIVE_TESTS
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_buffer_memory_resource_users.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_buffer_memory_resource.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_o1heap_memory_resource.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_memory_resource.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_monotonic_buffer_resource.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_optional.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_polymorphic_allocator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_string_view.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_type_traits.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_variant_assignment_1.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_variant_assignment_2.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_variant_assignment_3.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_variant_ctor_1.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_variant_ctor_2.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_variant_ctor_3.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_variant_ctor_4.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_variant_ctor_5.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_variant_ctor_6.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_variant_ctor_7.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_variant_ctor_8.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf17_variant_other.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf20_span_asserts.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf20_span.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pf20.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_rtti.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_type_traits_ext.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_typelist.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_unbounded_variant.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_variable_length_array_bool.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_variable_length_array_compat.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_variable_length_array_compiles.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_variable_length_array_copy_and_move.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_variable_length_array_debug_asserts.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_variable_length_array_detailed_allocation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_variable_length_array_general_allocation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/pmr/test_pmr_function.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/pmr/test_pmr_interface_ptr.cpp
 )
 
 set(ALL_TESTS_BUILD "")
@@ -51,7 +82,7 @@ foreach(NATIVE_TEST ${NATIVE_TESTS})
     list(APPEND ALL_TESTS_BUILD ${LOCAL_TEST_TARGET})
     list(APPEND ALL_TESTS_RUN ${LOCAL_TEST_REPORT})
 
-    if (CMAKE_BUILD_TYPE STREQUAL "Coverage")
+    if(GCOVR)
         define_gcovr_tracefile_target(
             TARGET ${LOCAL_TEST_TARGET}
             ROOT_DIRECTORY ${CETL_ROOT}
@@ -86,19 +117,15 @@ set_directory_properties(PROPERTIES
     IN_BUILD_TESTS "${ALL_TESTS_RUN}"
 )
 
-if (CMAKE_BUILD_TYPE STREQUAL "Coverage")
-    enable_coverage_report(COVERAGE_REPORT_FORMATS html sonarqube
-                           ROOT_DIRECTORY ${CETL_ROOT}
-                           OUT_REPORT_INDICES LOCAL_COVERAGE_REPORT_INDICIES
-    )
-endif()
+enable_coverage_report(COVERAGE_REPORT_FORMATS html sonarqube
+                        ROOT_DIRECTORY ${CETL_ROOT}
+                        OUT_REPORT_INDICES LOCAL_COVERAGE_REPORT_INDICIES
+)
 
 
 # +---------------------------------------------------------------------------+
 # | SONARQUBE
 # +---------------------------------------------------------------------------+
-if (CMAKE_BUILD_TYPE STREQUAL "Coverage")
-
 # we need to build at least one source file to get sonarqube to look at the cetl
 # headers.
 add_executable(cetlvast_sonar
@@ -157,5 +184,4 @@ if (${SonarScanner_FOUND})
     )
 else()
     message(STATUS "SonarScanner not found. Skipping SonarCloud integration.")
-endif()
 endif()

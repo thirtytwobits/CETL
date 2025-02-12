@@ -14,9 +14,7 @@ project(cetlvast_docs_examples C CXX)
 
 find_package(googletest REQUIRED)
 find_package(o1heap REQUIRED)
-if (CMAKE_BUILD_TYPE STREQUAL "Coverage")
-find_package(gcovr REQUIRED)
-endif()
+find_package(gcovr)
 
 # +---------------------------------------------------------------------------+
 # | BUILD NATIVE EXAMPLE CODE
@@ -40,7 +38,7 @@ foreach(NATIVE_EXAMPLE ${NATIVE_EXAMPLES})
         OUT_TEST_EXE_VARIABLE LOCAL_TEST_TARGET
         OUT_TEST_REPORT_VARIABLE LOCAL_TEST_REPORT
     )
-    if (CMAKE_BUILD_TYPE STREQUAL "Coverage")
+    if (GCOVR)
         define_gcovr_tracefile_target(
             TARGET ${LOCAL_TEST_TARGET}
             ROOT_DIRECTORY ${CETL_ROOT}
@@ -77,8 +75,6 @@ set_directory_properties(PROPERTIES
     IN_BUILD_TESTS "${ALL_EXAMPLE_RUNS}"
 )
 
-if (CMAKE_BUILD_TYPE STREQUAL "Coverage")
-    enable_coverage_report(COVERAGE_REPORT_FORMATS sonarqube html
-                           ROOT_DIRECTORY ${CETL_ROOT}
-    )
-endif()
+enable_coverage_report(COVERAGE_REPORT_FORMATS sonarqube html
+                        ROOT_DIRECTORY ${CETL_ROOT}
+)

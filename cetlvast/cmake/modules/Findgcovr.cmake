@@ -38,13 +38,16 @@ function(enable_instrumentation)
     #+-[body]-----------------------------------------------------------------+
     target_compile_options(${ARG_TARGET}
         PRIVATE
-            "--coverage"
-            "$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:-fprofile-instr-generate>"
-            "$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:-fcoverage-mapping>"
+            $<$<CONFIG:Coverage>:--coverage>
+            $<$<AND:$<CONFIG:Coverage>,$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>>:-fprofile-instr-generate>
+            $<$<AND:$<CONFIG:Coverage>,$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>>:-fcoverage-mapping>
+            $<$<AND:$<CONFIG:Coverage>,$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>>:-ftest-coverage> # Create a GCNO file.
+            $<$<AND:$<CONFIG:Coverage>,$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>>:-fprofile-arcs>
+            $<$<AND:$<CONFIG:Coverage>,$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>>:-fcoverage-mapping>
     )
     target_link_options(${ARG_TARGET}
         PRIVATE
-            "--coverage"
+            $<$<CONFIG:Coverage>:--coverage>
     )
 endfunction(enable_instrumentation)
 

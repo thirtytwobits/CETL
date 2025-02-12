@@ -48,67 +48,51 @@ enable_testing()
 include(FetchContent)
 include(FindPackageHandleStandardArgs)
 
-set(googletest_GIT_REPOSITORY "https://github.com/google/googletest.git")
-set(googletest_GIT_TAG "b796f7d44681514f58a683a3a71ff17c94edb0c1")
+list(APPEND LOCAL_PATCH_COMMAND ${CMAKE_CURRENT_LIST_DIR}/patchif.sh "${CMAKE_CURRENT_LIST_DIR}/patches/googletest.patch")
 
 FetchContent_Declare(
     googletest
-    GIT_REPOSITORY  ${googletest_GIT_REPOSITORY}
-    GIT_TAG         ${googletest_GIT_TAG}
+    SOURCE_DIR      "${CETLVAST_EXTERNAL_ROOT}/googletest"
+    GIT_REPOSITORY  "https://github.com/google/googletest.git"
+    GIT_TAG         "v1.16.0"
+    PATCH_COMMAND   ${LOCAL_PATCH_COMMAND}
+    GIT_SHALLOW     ON
+    GIT_SUBMODULES_RECURSE OFF
 )
 
-# The automatic management of the <lowercase>_POPULATED name appears to be broken in
-# cmake 3.21 and earlier.  This workaround may not be needed after 3.24.
-get_property(googletest_POPULATED GLOBAL PROPERTY googletest_POPULATED)
+set(INSTALL_GTEST OFF CACHE BOOL "We don't want to install googletest; just use it locally.")
+set(cxx_base_flags "" CACHE STRING "")
+set(cxx_no_rtti_flags "" CACHE STRING "")
+set(cxx_exception_flags "" CACHE STRING "")
+set(cxx_no_exception_flags "" CACHE STRING "")
+set(cxx_strict_flags "" CACHE STRING "")
 
-if(NOT googletest_POPULATED)
+FetchContent_MakeAvailable(
+    googletest
+)
 
-    if (NOT FETCHCONTENT_SOURCE_DIR_googletest)
-        set(FETCHCONTENT_SOURCE_DIR_googletest ${CETLVAST_EXTERNAL_ROOT}/googletest)
-    endif()
+_fix_gtest_library_properties(
+    GTEST_LIBS
+        gmock
+        gmock_main
+        gtest
+        gtest_main
+    GTEST_COMPILE_OPTIONS
+        "-Wno-sign-conversion"
+        "-Wno-zero-as-null-pointer-constant"
+        "-Wno-switch-enum"
+        "-Wno-float-equal"
+        "-Wno-double-promotion"
+        "-Wno-conversion"
+        "-Wno-missing-declarations"
+    OUTPUT_DIRECTORY
+        ${CMAKE_BINARY_DIR}/googletest
+)
 
-    if (NOT ${FETCHCONTENT_FULLY_DISCONNECTED})
-        FetchContent_Populate(
-            googletest
-            SOURCE_DIR      ${FETCHCONTENT_SOURCE_DIR_googletest}
-            GIT_REPOSITORY  ${googletest_GIT_REPOSITORY}
-            GIT_TAG         ${googletest_GIT_TAG}
-        )
-    else()
-        set(googletest_SOURCE_DIR ${FETCHCONTENT_SOURCE_DIR_googletest})
-    endif()
+find_package_handle_standard_args(googletest
+    REQUIRED_VARS googletest_SOURCE_DIR
+)
 
-    # The automatic management of the <lowercase>_POPULATED name appears to be broken in
-    # cmake 3.21 and earlier.  This workaround may not be needed after 3.24.
-    set_property(GLOBAL PROPERTY googletest_POPULATED true)
-
-    find_package_handle_standard_args(googletest
-        REQUIRED_VARS googletest_SOURCE_DIR
-    )
-
-    set(INSTALL_GTEST OFF CACHE BOOL "We don't want to install googletest; just use it locally.")
-
-    add_subdirectory(${googletest_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/googletest)
-
-    _fix_gtest_library_properties(
-        GTEST_LIBS
-            gmock
-            gmock_main
-            gtest
-            gtest_main
-        GTEST_COMPILE_OPTIONS
-            "-Wno-sign-conversion"
-            "-Wno-zero-as-null-pointer-constant"
-            "-Wno-switch-enum"
-            "-Wno-float-equal"
-            "-Wno-double-promotion"
-            "-Wno-conversion"
-            "-Wno-missing-declarations"
-        OUTPUT_DIRECTORY
-            ${CMAKE_BINARY_DIR}/googletest
-    )
-
-endif()
 endif()
 
 # +---------------------------------------------------------------------------+
@@ -231,29 +215,27 @@ function(define_native_gtest_unittest_library)
             gtest
     )
 
-    if (CMAKE_BUILD_TYPE STREQUAL "Coverage")
-        # Annotate the library target with the byproducts of the coverage instrumentation.
-        _get_internal_output_path_for_source(
-            SOURCEFILE ${ARG_TEST_SOURCE}
-            SOURCEFILE_STEM_SUFFIX "${_PRIVATE_GOOGLETEST_OBJLIB_SUFFIX}"
-            OUT_INTERNAL_DIRECTORY_VARIABLE LOCAL_OBJLIB_FOLDER_REL
-        )
-        cmake_path(ABSOLUTE_PATH LOCAL_OBJLIB_FOLDER_REL
-                    BASE_DIRECTORY ${ARG_RUNTIME_OUTPUT_DIRECTORY}
-                    OUTPUT_VARIABLE LOCAL_OBJLIB_FOLDER)
+    # Annotate the library target with the byproducts of the coverage instrumentation.
+    _get_internal_output_path_for_source(
+        SOURCEFILE ${ARG_TEST_SOURCE}
+        SOURCEFILE_STEM_SUFFIX "${_PRIVATE_GOOGLETEST_OBJLIB_SUFFIX}"
+        OUT_INTERNAL_DIRECTORY_VARIABLE LOCAL_OBJLIB_FOLDER_REL
+    )
+    cmake_path(ABSOLUTE_PATH LOCAL_OBJLIB_FOLDER_REL
+                BASE_DIRECTORY ${ARG_RUNTIME_OUTPUT_DIRECTORY}
+                OUTPUT_VARIABLE LOCAL_OBJLIB_FOLDER)
 
-        cmake_path(GET ARG_TEST_SOURCE EXTENSION LOCAL_TEST_EXT)
+    cmake_path(GET ARG_TEST_SOURCE EXTENSION LOCAL_TEST_EXT)
 
-        # the generation of gcda files assumes "-fprofile-argcs" (or "-coverage" which includes this flag).
-        set(LOCAL_BYPRODUCTS "${LOCAL_OBJLIB_FOLDER}/${LOCAL_TEST_NAME}${LOCAL_TEST_EXT}.gcda")
-        # the generation of gcno files assumes "-ftest-coverage" (or "-coverage" which includes this flag)
-        list(APPEND LOCAL_BYPRODUCTS "${LOCAL_OBJLIB_FOLDER}/${LOCAL_TEST_NAME}${LOCAL_TEST_EXT}.gcno")
+    # the generation of gcda files assumes "-fprofile-argcs" (or "-coverage" which includes this flag).
+    set(LOCAL_BYPRODUCTS "${LOCAL_OBJLIB_FOLDER}/${LOCAL_TEST_NAME}${LOCAL_TEST_EXT}.gcda")
+    # the generation of gcno files assumes "-ftest-coverage" (or "-coverage" which includes this flag)
+    list(APPEND LOCAL_BYPRODUCTS "${LOCAL_OBJLIB_FOLDER}/${LOCAL_TEST_NAME}${LOCAL_TEST_EXT}.gcno")
 
-        set_target_properties(${LOCAL_TEST_LIB_NAME}
-            PROPERTIES
-            POST_BUILD_INSTRUMENTATION_BYPRODUCTS "${LOCAL_BYPRODUCTS}"
-        )
-    endif()
+    set_target_properties(${LOCAL_TEST_LIB_NAME}
+        PROPERTIES
+        POST_BUILD_INSTRUMENTATION_BYPRODUCTS "${LOCAL_BYPRODUCTS}"
+    )
 
     #+-[output]---------------------------------------------------------------+
 
